@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copiloto Legal: Comparador Legislativo Inteligente (OpenAI)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Library for Word export -->
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <!-- Library for Diff viewer -->
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #resultsTable th, #resultsTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            vertical-align: top;
+        }
+        #resultsTable th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        ins {
+            background-color: #d4edda;
+            text-decoration: none;
+        }
+        del {
+            background-color: #f8d7da;
+            text-decoration: line-through;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+        }
+        .modal-button {
+            margin-top: 1.5rem;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.375rem;
+            background-color: #2563eb;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
+
+    <div class="container mx-auto p-4 md:p-8 flex-grow">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Copiloto Legal</h1>
+            <p class="text-gray-600 mt-2">Su asistente para la generación de indicaciones y tablas comparativas de textos legales.</p>
+        </header>
+
+        <!-- API Key Input: Changed to request an OpenAI key -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <label for="apiKey" class="block text-lg font-semibold mb-2">Your OpenAI API Key</label>
+            <input type="password" id="apiKey" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Paste your API key here to enable the tool">
+            <p class="text-sm text-gray-500 mt-2">Su clave se utiliza únicamente en su navegador y nunca se almacena.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Texto Original Completo</h2>
+                <textarea id="originalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto original..."></textarea>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Texto Final Completo</h2>
+                <textarea id="finalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto final modificado..."></textarea>
+            </div>
+        </div>
+
+        <div class="text-center my-8">
+            <button id="generateButton" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                Generar Tabla Comparativa
+            </button>
+        </div>
+
+        <div id="outputSection" class="bg-white p-6 rounded-lg shadow-md hidden">
+             <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-xl font-semibold">Resultado Comparativo <span id="timerResult" class="text-sm font-normal text-gray-500 ml-2"></span></h2>
+                  <button id="exportButton" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                        Exportar a Word
+                  </button>
+             </div>
+             <div id="resultsContainer" class="w-full overflow-x-auto">
+                 <!-- The results table will be rendered here -->
+             </div>
+        </div>
+    </div>
+
+    <footer class="text-center p-4 text-gray-500 text-sm">
+        <p>Copiloto Legal v4.7.1 (OpenAI Edition) | Última actualización: 21 de Agosto, 2025</p>
+    </footer>
+
+    <!-- Modal for custom alerts -->
+    <div id="customAlert" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <p id="alertMessage"></p>
+            <button id="alertCloseButton" class="modal-button">Cerrar</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('generateButton').addEventListener('click', generateIndications);
+        document.getElementById('exportButton').addEventListener('click', exportToWord);
+        document.getElementById('alertCloseButton').addEventListener('click', () => {
+            document.getElementById('customAlert').classList.add('hidden');
+        });
+
+        function showAlert(message) {
+            document.getElementById('alertMessage').textContent = message;
+            document.getElementById('customAlert').classList.remove('hidden');
+        }
+
+        function parseCustomFormat(responseText) {
+            const articles = [];
+            const articleBlocks = responseText.split('<ARTICLE_END>');
+
+            for (const block of articleBlocks) {
+                if (block.trim() === '') continue;
+
+                const originalMatch = block.match(/<ORIGINAL>([\s\S]*?)<\/ORIGINAL>/);
+                const indicationsMatch = block.match(/<INDICACIONES>([\s\S]*?)<\/INDICACIONES>/);
+                const finalMatch = block.match(/<FINAL>([\s\S]*?)<\/FINAL>/);
+
+                if (originalMatch && indicationsMatch && finalMatch) {
+                    articles.push({
+                        textoOriginal: originalMatch[1].trim(),
+                        indicaciones: indicationsMatch[1].trim(),
+                        textoFinal: finalMatch[1].trim()
+                    });
+                }
+            }
+            return articles;
+        }
+        
+        function renderTable(articles) {
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = ''; 
+
+            if (!articles || articles.length === 0) {
+                container.innerHTML = `<p class="text-red-500">No se pudieron procesar los artículos a partir de la respuesta de la API. Verifique el texto de entrada.</p>`;
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.id = 'resultsTable';
+            table.className = 'w-full border-collapse';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th class="w-1/3 p-2 border bg-gray-100">Texto Original (con cambios)</th>
+                    <th class="w-1/3 p-2 border bg-gray-100">Indicaciones Generadas</th>
+                    <th class="w-1/3 p-2 border bg-gray-100">Texto Final (con cambios)</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            articles.forEach(article => {
+                const diff = Diff.diffWords(article.textoOriginal || '', article.textoFinal || '', { ignoreWhitespace: true });
+                let originalHtml = '';
+                let finalHtml = '';
+
+                diff.forEach(part => {
+                    const value = part.value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    if (part.added) {
+                        finalHtml += `<ins>${value}</ins>`;
+                    } else if (part.removed) {
+                        originalHtml += `<del>${value}</del>`;
+                    } else {
+                        originalHtml += value;
+                        finalHtml += value;
+                    }
+                });
+                
+                const indicationsText = article.indicaciones || '';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 border align-top whitespace-pre-wrap">${originalHtml}</td>
+                    <td class="p-2 border align-top whitespace-pre-wrap">${indicationsText.replace(/\n/g, '<br>')}</td>
+                    <td class="p-2 border align-top whitespace-pre-wrap">${finalHtml}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+
+            document.getElementById('outputSection').classList.remove('hidden');
+        }
+
+        async function fetchWithExponentialBackoff(url, options, maxRetries = 5) {
+            let lastError;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    
+                    if (response.ok) {
+                        return response;
+                    }
+
+                    // Handles rate limiting for both OpenAI and other services
+                    if (response.status === 429) {
+                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                        console.log(`Rate limit exceeded. Retrying in ${Math.round(delay / 1000)}s...`);
+                        resultsContainer.innerHTML = `<p class="text-orange-500">Límite de solicitudes alcanzado. Reintentando automáticamente en ${Math.round(delay / 1000)} segundos...</p>`;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        lastError = new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
+                        continue;
+                    }
+
+                    throw new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
+
+                } catch (error) {
+                    lastError = error;
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    console.log(`Request failed. Retrying in ${Math.round(delay / 1000)}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw lastError;
+        }
+
+
+        async function generateIndications() {
+            const apiKey = document.getElementById('apiKey').value;
+            const originalText = document.getElementById('originalText').value;
+            const finalText = document.getElementById('finalText').value;
+            const resultsContainer = document.getElementById('resultsContainer');
+            const outputSection = document.getElementById('outputSection');
+            const generateButton = document.getElementById('generateButton');
+            const timerResult = document.getElementById('timerResult');
+            
+            // Modified alert message for OpenAI key
+            if (!apiKey) {
+                showAlert('Por favor, ingrese su clave de API de OpenAI para continuar.');
+                return;
+            }
+            
+            if (!originalText.trim() || !finalText.trim()) {
+                showAlert('Por favor, pegue el texto en ambas columnas para generar las indicaciones.');
+                return;
+            }
+
+            generateButton.disabled = true;
+            generateButton.textContent = 'Generando...';
+            outputSection.classList.remove('hidden');
+            resultsContainer.innerHTML = '<div class="loader"></div>';
+            timerResult.textContent = ''; 
+
+            const startTime = performance.now(); 
+
+            // The prompt remains the same as it describes the task, which is model-agnostic.
+            const prompt = `
+**Rol:** Eres un asesor legislativo experto en Chile, con especialización en técnica parlamentaria. Tu misión es generar una comparación completa, artículo por artículo, de dos textos legales, produciendo indicaciones precisas y profesionales que se adhieran estrictamente a la terminología oficial.
+
+---
+**1. GLOSARIO DE TÉRMINOS (USO OBLIGATORIO)**
+Debes usar exclusivamente los siguientes verbos y sustantivos al redactar las indicaciones:
+
+* **Verbos de Acción:**
+    * **Para adicionar información:** "Incorpórase", "Agrégase", "Añádese".
+    * **Para sustituir información:** "Sustitúyese", "Reemplázase".
+    * **Para adicionar entre vocablos:** "Intercálese".
+    * **Para eliminar información:** "Suprímese", "Elimínase".
+    * **Para modificar de forma genérica:** "Modifícase".
+
+* **Sustantivos para Designar Elementos:**
+    * **Una cifra:** "el guarismo".
+    * **Un conjunto de palabras:** "la expresión".
+    * **Un número de norma en listado:** "el numeral" o "el literal".
+    * **Un artículo específico:** "el artículo".
+    * **Una parte de un artículo:** "el inciso".
+
+---
+**2. REGLAS DE ORO (MÁXIMA PRIORIDAD)**
+* **NUMERACIÓN CORRELATIVA GLOBAL:** La numeración de las indicaciones (1), 2), 3), etc.) DEBE ser continua a lo largo de TODO el documento. NO se reinicia con cada artículo.
+* **PROCESAR TODO Y EN ORDEN:** Recorre los textos de principio a fin. DEBES generar un bloque de salida para CADA artículo. NO te detengas.
+
+---
+**3. FORMATO DE SALIDA ESTRICTO (OBLIGATORIO)**
+La totalidad de tu respuesta DEBE usar este formato de etiquetas. No uses JSON.
+<ARTICLE_START>
+<ORIGINAL>...texto original aquí...</ORIGINAL>
+<INDICACIONES>...indicaciones aquí...</INDICACIONES>
+<FINAL>...texto final aquí...</FINAL>
+<ARTICLE_END>
+... (repetir para cada artículo) ...
+
+---
+**4. PROCESO DE ANÁLISIS SECUENCIAL E ITERATIVO**
+Tu tarea es procesar **TODOS** los artículos de principio a fin. No te detengas después de uno. Aplica esta lógica rigurosamente para cada artículo que encuentres:
+
+1.  **IDENTIFICAR ARTÍCULO:** Toma el siguiente artículo en secuencia (ej. "Artículo 2°").
+
+2.  **ANALIZAR CASO:**
+    * **CASO A: MODIFICACIÓN.** El artículo existe en ambos textos con el mismo número.
+        * **Encabezado:** Comienza la sección de indicaciones con el encabezado que incluya el nombre completo del artículo (ej: \`AL ARTÍCULO 11\`).
+        * **SUB-PROCESO CRÍTICO: ANÁLISIS POR INCISO.**
+            * **Agrupa los cambios por inciso:** Para cada inciso que tenga modificaciones, genera UNA SOLA indicación numerada.
+            * **Dentro de una indicación:**
+                * Si hay **un solo cambio** en el inciso, descríbelo directamente.
+                    * *Ejemplo:* \`1) Para suprimir el inciso tercero.\`
+                * Si hay **múltiples cambios** en el inciso (ej: modificar una expresión y suprimir un literal), usa la frase "en el siguiente sentido:" y detalla cada cambio con letras (a), b), c), ...).
+                    * *Ejemplo Correcto:*
+                      \`AL ARTÍCULO 11
+                      1) Para modificar su inciso primero en el siguiente sentido:
+                      a) Suprímese la expresión “o la estabilidad financiera”.
+                      b) Suprímese, en su literal b), la expresión “Tratándose de entidades... que ésta realice.”.\`
+            * **Reconoce la estructura:** Un "literal" (como \`b)\`) es PARTE de un "inciso", no es un inciso nuevo.
+            * Si no hay cambios en ningún inciso del artículo, deja \`<INDICACIONES>\` vacío.
+
+    * **CASO B: ARTÍCULO NUEVO.** El artículo solo existe en el "Texto Final".
+        * \`<ORIGINAL>\` queda vacío.
+        * \`<INDICACIONES>\` es: \`[N° correlativo]) Para agregar el siguiente artículo [nombre completo], nuevo, del siguiente tenor: "[texto completo]"\`.
+        * \`<FINAL>\` contiene el texto completo.
+
+    * **CASO C: ARTÍCULO ELIMINADO.** El artículo solo existe en el "Texto Original".
+        * \`<ORIGINAL>\` contiene el texto del artículo.
+        * \`<INDICaciones>\` es: \`[N° correlativo]) Para suprimir el artículo [nombre completo].\`.
+        * \`<FINAL>\` queda vacío.
+
+    * **CASO D: RENUMERACIÓN.** El contenido del "Artículo X" original es idéntico al del "Artículo Y" final.
+        * \`<ORIGINAL>\` contiene el texto del artículo original (X).
+        * \`<INDICACIONES>\` es: \`[N° correlativo]) Para consignar que el artículo X ha pasado a ser artículo Y.\`
+        * \`<FINAL>\` contiene el texto del artículo final (Y).
+
+3.  **CONSTRUIR BLOQUE DE SALIDA:** Envuelve el resultado en las etiquetas \`<ARTICLE_START>\` y \`<ARTICLE_END>\`.
+
+4.  **CONTINUAR:** Inmediatamente después de cerrar un bloque con \`<ARTICLE_END>\`, busca el siguiente artículo en los textos y repite el proceso desde el paso 1.
+
+---
+**5. REGLA FINAL DE COMPLETITUD**
+* **NO TE DETENGAS PREMATURAMENTE:** Es un error crítico detener el análisis antes de haber procesado todos los artículos del "Texto Original" y del "Texto Final". Debes continuar generando bloques \`<ARTICLE_START>...<ARTICLE_END>\` hasta que ambos textos hayan sido completamente cubiertos.
+
+---
+**6. TEXTOS A PROCESAR**
+Aplica este proceso riguroso a los siguientes textos.
+
+**Texto Original:**
+\`\`\`
+${originalText}
+\`\`\`
+
+**Texto Final:**
+\`\`\`
+${finalText}
+\`\`\`
+`;
+            
+            // MODIFICATION: Switched to OpenAI API endpoint
+            const apiUrl = 'https://api.openai.com/v1/chat/completions';
+            
+            // MODIFICATION: Switched to OpenAI payload format
+            const payload = {
+                model: "gpt-4o", // Using a powerful and recent model suitable for this task
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.2, // Lower temperature for more deterministic and precise legal text generation
+            };
+
+            try {
+                // MODIFICATION: Switched to OpenAI headers format (Authorization Bearer Token)
+                const response = await fetchWithExponentialBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                
+                // MODIFICATION: Switched to parsing OpenAI's response structure
+                const responseText = result?.choices?.[0]?.message?.content;
+
+                if (!responseText) {
+                    throw new Error('La respuesta de la API no contiene texto procesable.');
+                }
+                
+                const articles = parseCustomFormat(responseText);
+                
+                renderTable(articles);
+
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                timerResult.textContent = `(Generado en ${duration} segundos)`;
+
+            } catch (error) {
+                console.error('Error al procesar la solicitud:', error);
+                resultsContainer.innerHTML = `<p class="text-red-500">Ocurrió un error al generar las indicaciones después de varios intentos. Error: ${error.message}</p>`;
+            } finally {
+                generateButton.disabled = false;
+                generateButton.textContent = 'Generar Tabla Comparativa';
+            }
+        }
+
+        function exportToWord() {
+            const table = document.getElementById('resultsTable');
+            if (!table) {
+                showAlert("No hay resultados para exportar.");
+                return;
+            }
+            
+            const tableClone = table.cloneNode(true);
+            
+            // Replace <br> with newlines for better Word formatting
+            tableClone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\n'), br));
+
+            const content = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: 'Times New Roman', Times, serif; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; white-space: pre-wrap; }
+                        th { background-color: #f2f2f2; }
+                        ins { background-color: #d4edda; text-decoration: none; color: black; }
+                        del { background-color: #f8d7da; text-decoration: line-through; color: black; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Tabla Comparativa de Indicaciones</h1>
+                    ${tableClone.outerHTML}
+                </body>
+                </html>
+            `;
+            
+            var converted = htmlDocx.asBlob(content);
+            saveAs(converted, 'Tabla_Comparativa_Indicaciones.docx');
+        }
+    </script>
+</body>
+</html>
