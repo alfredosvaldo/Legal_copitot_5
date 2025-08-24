@@ -1,405 +1,385 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Copiloto Legal FT — Comparador Legislativo (OpenAI)</title>
-
-  <!-- Tailwind (UI) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Librerías: exportar a Word y diff -->
-  <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
-  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
-
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-    #resultsTable th, #resultsTable td { border: 1px solid #e5e7eb; padding: 10px; vertical-align: top; }
-    #resultsTable th { background: #f8fafc; text-align: left; }
-    ins { background-color: #d4edda; text-decoration: none; }
-    del { background-color: #f8d7da; text-decoration: line-through; }
-    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #2563eb; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copiloto Legal: Comparador Legislativo Inteligente (OpenAI)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Library for Word export -->
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <!-- Library for Diff viewer -->
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #resultsTable th, #resultsTable td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+        #resultsTable th { background-color: #f2f2f2; text-align: left; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        ins { background-color: #d4edda; text-decoration: none; }
+        del { background-color: #f8d7da; text-decoration: line-through; }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); text-align: center; max-width: 90%; width: 400px; }
+        .modal-button { margin-top: 1.5rem; padding: 0.5rem 1.5rem; border-radius: 0.375rem; background-color: #2563eb; color: white; font-weight: 600; cursor: pointer; }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
 
-  <div class="container mx-auto p-4 md:p-8 flex-1">
-    <header class="mb-6">
-      <h1 class="text-3xl md:text-4xl font-bold">Copiloto Legal (Fine-tuned)</h1>
-      <p class="text-gray-600 mt-2">Comparación artículo-por-artículo, indicaciones y tabla con resaltado de cambios.</p>
-    </header>
+    <div class="container mx-auto p-4 md:p-8 flex-grow">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Copiloto Legal</h1>
+            <p class="text-gray-600 mt-2">Su asistente para la generación de indicaciones y tablas comparativas de textos legales.</p>
+        </header>
 
-    <!-- Panel de configuración -->
-    <section class="bg-white p-5 rounded-lg shadow mb-6 grid gap-4 md:grid-cols-2">
-      <div>
-        <label class="block font-semibold mb-2">OpenAI API Key</label>
-        <input type="password" id="apiKey" class="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500"
-               placeholder="Pega tu API key" />
-        <p class="text-sm text-gray-500 mt-1">Se usa solo en tu navegador (no se envía a ningún servidor propio).</p>
-      </div>
-      <div>
-        <label class="block font-semibold mb-2">Modelo (opcional)</label>
-        <input type="text" id="modelName" class="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 mono"
-               placeholder="ft:..." />
-        <p class="text-sm text-gray-500 mt-1">
-          Pre-rellenado con tu modelo FT. Si lo vacías, usaremos el base model recomendado.
-        </p>
-      </div>
-      <div class="md:col-span-2 flex items-center gap-3">
-        <input id="remember" type="checkbox" class="h-4 w-4" checked />
-        <label for="remember" class="text-sm text-gray-700">Recordar API key y modelo en este navegador</label>
-      </div>
-    </section>
-
-    <!-- Entradas de texto -->
-    <section class="grid gap-6 md:grid-cols-2">
-      <div class="bg-white p-5 rounded-lg shadow">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xl font-semibold">Texto Original (completo)</h2>
-          <button id="pasteOriginal" class="text-sm text-blue-600 hover:underline">Pegar</button>
+        <!-- API Key Input: Changed to request an OpenAI key -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <label for="apiKey" class="block text-lg font-semibold mb-2">Your OpenAI API Key</label>
+            <input type="password" id="apiKey" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Paste your API key here to enable the tool">
+            <p class="text-sm text-gray-500 mt-2">Su clave se utiliza únicamente en su navegador y nunca se almacena.</p>
         </div>
-        <textarea id="originalText" class="w-full h-96 p-3 border rounded-md focus:ring-2 focus:ring-blue-500"
-                  placeholder="Pega aquí el texto original completo…"></textarea>
-      </div>
 
-      <div class="bg-white p-5 rounded-lg shadow">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xl font-semibold">Texto Final (completo)</h2>
-          <button id="pasteFinal" class="text-sm text-blue-600 hover:underline">Pegar</button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Texto Original Completo</h2>
+                <textarea id="originalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto original..."></textarea>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Texto Final Completo</h2>
+                <textarea id="finalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto final modificado..."></textarea>
+            </div>
         </div>
-        <textarea id="finalText" class="w-full h-96 p-3 border rounded-md focus:ring-2 focus:ring-blue-500"
-                  placeholder="Pega aquí el texto final completo…"></textarea>
-      </div>
-    </section>
 
-    <!-- Acciones -->
-    <div class="flex flex-wrap gap-3 justify-center my-8">
-      <button id="generateButton"
-              class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow hover:bg-green-700 focus:ring-4 focus:ring-green-300 disabled:bg-gray-400">
-        Generar tabla comparativa
-      </button>
-      <button id="exportButton"
-              class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow hover:bg-blue-700"
-              title="Exporta el resultado a Word (.docx)">Exportar a Word</button>
-      <button id="clearButton"
-              class="bg-gray-200 text-gray-800 font-semibold py-3 px-6 rounded-lg shadow hover:bg-gray-300">
-        Limpiar
-      </button>
+        <div class="text-center my-8">
+            <button id="generateButton" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                Generar Tabla Comparativa
+            </button>
+        </div>
+
+        <div id="outputSection" class="bg-white p-6 rounded-lg shadow-md hidden">
+             <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-xl font-semibold">Resultado Comparativo <span id="timerResult" class="text-sm font-normal text-gray-500 ml-2"></span></h2>
+                  <button id="exportButton" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                        Exportar a Word
+                  </button>
+             </div>
+             <div id="resultsContainer" class="w-full overflow-x-auto"></div>
+        </div>
     </div>
 
-    <!-- Resultados -->
-    <section id="outputSection" class="bg-white p-5 rounded-lg shadow hidden">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-xl font-semibold">Resultado <span id="timerResult" class="text-sm font-normal text-gray-500 ml-2"></span></h3>
-        <span id="modelUsed" class="text-xs text-gray-500 mono"></span>
-      </div>
-      <div id="resultsContainer" class="w-full overflow-x-auto"></div>
-    </section>
+    <footer class="text-center p-4 text-gray-500 text-sm">
+        <p>Copiloto Legal v4.7.2 (OpenAI Edition) | Última actualización: 22 de Agosto, 2025</p>
+    </footer>
 
-    <!-- Errores -->
-    <div id="errorBox" class="hidden mt-4 p-4 rounded bg-red-50 border border-red-200 text-red-700"></div>
-  </div>
+    <!-- Modal for custom alerts -->
+    <div id="customAlert" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <p id="alertMessage"></p>
+            <button id="alertCloseButton" class="modal-button">Cerrar</button>
+        </div>
+    </div>
 
-  <footer class="text-center p-4 text-gray-500 text-sm">
-    Copiloto Legal v5.0 (FT) — Cliente 100% local. Última actualización: 23 Ago 2025.
-  </footer>
+    <script>
+        document.getElementById('generateButton').addEventListener('click', generateIndications);
+        document.getElementById('exportButton').addEventListener('click', exportToWord);
+        document.getElementById('alertCloseButton').addEventListener('click', () => {
+            document.getElementById('customAlert').classList.add('hidden');
+        });
 
-<script>
-/* ===========================
-   Utilidades UI
-   =========================== */
-const $ = (id) => document.getElementById(id);
-const defaultFTModel = "ft:gpt-4.1-mini-2025-04-14:personal:copiloto-legal-fine:C7rwpGL7";
-const baseFallbackModel = "gpt-4.1-mini-2025-04-14"; // por si quieres probar sin FT
-
-// Cargar preferencias guardadas
-(function boot(){
-  const savedKey   = localStorage.getItem("openai_key");
-  const savedModel = localStorage.getItem("openai_model");
-  if (savedKey)   $("apiKey").value = savedKey;
-  $("modelName").value = savedModel || defaultFTModel;
-})();
-
-$("remember").addEventListener("change", (e)=>{
-  if (!e.target.checked) {
-    localStorage.removeItem("openai_key");
-    localStorage.removeItem("openai_model");
-  }
-});
-
-$("pasteOriginal").onclick = async () => {
-  try { $("originalText").value = await navigator.clipboard.readText(); } catch {}
-};
-$("pasteFinal").onclick = async () => {
-  try { $("finalText").value = await navigator.clipboard.readText(); } catch {}
-};
-
-$("clearButton").onclick = () => {
-  $("resultsContainer").innerHTML = "";
-  $("outputSection").classList.add("hidden");
-  $("timerResult").textContent = "";
-  $("errorBox").classList.add("hidden");
-};
-
-/* ===========================
-   Validación de salida (STRICT)
-   =========================== */
-function isWellFormedResponse(txt){
-  return /<ARTICLE_START>/i.test(txt) &&
-         /<ARTICLE_END>/i.test(txt) &&
-         /<ORIGINAL>[\s\S]*<\/ORIGINAL>/i.test(txt) &&
-         /<INDICACIONES>[\s\S]*<\/INDICACIONES>/i.test(txt) &&
-         /<FINAL>[\s\S]*<\/FINAL>/i.test(txt);
-}
-
-/* ===========================
-   Parser del formato etiquetado
-   =========================== */
-function parseCustomFormat(responseText) {
-  const blocks = responseText.split(/<ARTICLE_END>/i);
-  const articles = [];
-  for (const raw of blocks) {
-    const block = raw.trim();
-    if (!block) continue;
-    const orig = (block.match(/<ORIGINAL>([\s\S]*?)<\/ORIGINAL>/i) || [])[1] || "";
-    const inds = (block.match(/<INDICACIONES>([\s\S]*?)<\/INDICACIONES>/i) || [])[1] || "";
-    const fin  = (block.match(/<FINAL>([\s\S]*?)<\/FINAL>/i) || [])[1] || "";
-    if (orig.length + inds.length + fin.length === 0) continue;
-    articles.push({
-      original: orig.trim(),
-      indicaciones: sanitize(inds.trim()),
-      final: fin.trim()
-    });
-  }
-  return articles;
-}
-
-/* ===========================
-   Render de la tabla con diff
-   =========================== */
-function renderTable(articles) {
-  const container = $("resultsContainer");
-  container.innerHTML = "";
-  if (!articles || articles.length === 0) {
-    container.innerHTML = `<p class="text-red-500">No se encontraron artículos en la respuesta del modelo.</p>`;
-    return;
-  }
-  const table = document.createElement("table");
-  table.id = "resultsTable";
-  table.className = "w-full border-collapse text-sm md:text-base";
-
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th class="w-1/3">Texto Original (con diffs)</th>
-        <th class="w-1/3">Indicaciones</th>
-        <th class="w-1/3">Texto Final (con diffs)</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-  const tbody = table.querySelector("tbody");
-
-  articles.forEach((a) => {
-    const diff = Diff.diffWords(a.original || "", a.final || "", { ignoreWhitespace: true });
-    let oHtml = "", fHtml = "";
-    diff.forEach(part => {
-      const safe = escapeHtml(part.value);
-      if (part.added) fHtml += `<ins>${safe}</ins>`;
-      else if (part.removed) oHtml += `<del>${safe}</del>`;
-      else { oHtml += safe; fHtml += safe; }
-    });
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="align-top whitespace-pre-wrap">${oHtml}</td>
-      <td class="align-top whitespace-pre-wrap">${a.indicaciones}</td>
-      <td class="align-top whitespace-pre-wrap">${fHtml}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  container.appendChild(table);
-  $("outputSection").classList.remove("hidden");
-}
-
-/* ===========================
-   Exportar a Word
-   =========================== */
-$("exportButton").onclick = () => {
-  const table = $("resultsTable");
-  if (!table) { showError("No hay resultados para exportar."); return; }
-
-  const content = `
-  <!DOCTYPE html>
-  <html><head><meta charset="UTF-8">
-    <style>
-      body{font-family: 'Times New Roman', Times, serif;}
-      table{border-collapse: collapse; width: 100%;}
-      th,td{border:1px solid #000; padding:8px; vertical-align:top; white-space:pre-wrap;}
-      th{background:#f2f2f2;}
-      ins{background:#d4edda; text-decoration:none; color:#000;}
-      del{background:#f8d7da; text-decoration:line-through; color:#000;}
-    </style>
-  </head><body>
-    <h1>Tabla Comparativa de Indicaciones</h1>
-    ${table.outerHTML}
-  </body></html>`;
-  const blob = htmlDocx.asBlob(content);
-  saveAs(blob, "Tabla_Comparativa_Indicaciones.docx");
-};
-
-/* ===========================
-   Llamada a OpenAI (Chat Completions)
-   =========================== */
-$("generateButton").onclick = generate;
-
-async function generate() {
-  hideError();
-  const key = $("apiKey").value.trim();
-  const model = ($("modelName").value.trim()) || baseFallbackModel;
-  const original = $("originalText").value.trim();
-  const finalTxt = $("finalText").value.trim();
-
-  if (!key) return showError("Ingresa tu OpenAI API key.");
-  if (!original || !finalTxt) return showError("Pega texto en ambas columnas.");
-
-  if ($("remember").checked) {
-    localStorage.setItem("openai_key", key);
-    localStorage.setItem("openai_model", model);
-  }
-
-  $("generateButton").disabled = true;
-  $("generateButton").textContent = "Generando…";
-  $("outputSection").classList.remove("hidden");
-  $("resultsContainer").innerHTML = '<div class="loader"></div>';
-  $("timerResult").textContent = "";
-  $("modelUsed").textContent = "";
-  const t0 = performance.now();
-
-  const systemPrompt = [
-    "Eres un asesor legislativo experto en técnica parlamentaria chilena.",
-    "Analiza dos textos (Original y Final) y produce la comparación COMPLETA, artículo por artículo.",
-    "Entrega únicamente bloques etiquetados EXACTOS, sin explicaciones ni pasos intermedios:",
-    "<ARTICLE_START>",
-    "<ORIGINAL>…</ORIGINAL>",
-    "<INDICACIONES>",
-    "AL ARTÍCULO [nombre completo]",
-    "1) Para [verbo en infinitivo] …",
-    "   a) [Verbo normativo] …",
-    "</INDICACIONES>",
-    "<FINAL>…</FINAL>",
-    "<ARTICLE_END>",
-    "Procesa TODOS los artículos; numeración correlativa global; maneja casos: modificación, nuevo, eliminado, renumeración."
-  ].join("\n");
-
-  const userPrompt = `Texto Original:\n${original}\n\nTexto Final:\n${finalTxt}`;
-
-  const payload = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user",   content: userPrompt }
-    ],
-    temperature: 0.1
-  };
-
-  try {
-    const res = await chatWithRetry(payload, key);
-    const data = await res.json();
-    const txt = data?.choices?.[0]?.message?.content || "";
-
-    if (!txt) throw new Error("La API no devolvió contenido.");
-    if (!isWellFormedResponse(txt)) {
-      throw new Error("La salida no cumple el formato etiquetado esperado.");
-    }
-
-    // Procesar (antes de mostrar)
-    const articles = parseCustomFormat(txt);
-
-    // Render (después del parseo completo)
-    renderTable(articles);
-
-    const t1 = performance.now();
-    $("timerResult").textContent = `(generado en ${(t1 - t0)/1000 | 0}s)`;
-    $("modelUsed").textContent = `Modelo: ${model}`;
-  } catch (err) {
-    // Intento de fallback: si falló con FT, pruebo base model automáticamente
-    if (model !== baseFallbackModel) {
-      try {
-        const res2 = await chatWithRetry({ ...payload, model: baseFallbackModel }, key);
-        const data2 = await res2.json();
-        const txt2 = data2?.choices?.[0]?.message?.content || "";
-        if (!txt2 || !isWellFormedResponse(txt2)) {
-          throw new Error("El fallback al modelo base tampoco produjo formato válido.");
+        function showAlert(message) {
+            document.getElementById('alertMessage').textContent = message;
+            document.getElementById('customAlert').classList.remove('hidden');
         }
-        const articles2 = parseCustomFormat(txt2);
-        renderTable(articles2);
-        const t1 = performance.now();
-        $("timerResult").textContent = `(generado en ${(t1 - t0)/1000 | 0}s)`;
-        $("modelUsed").textContent = `Modelo: ${baseFallbackModel} (fallback)`;
-        return;
-      } catch (inner) {
-        showError(inner.message || String(inner));
-      }
-    } else {
-      showError(err.message || String(err));
-    }
-  } finally {
-    $("generateButton").disabled = false;
-    $("generateButton").textContent = "Generar tabla comparativa";
-  }
-}
 
-async function chatWithRetry(payload, apiKey, maxRetries=4){
-  const url = "https://api.openai.com/v1/chat/completions";
-  let lastErr;
-  for (let i=0;i<=maxRetries;i++){
-    try{
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) return res;
-      if (res.status === 429 || res.status >= 500){
-        // backoff exponencial
-        const wait = Math.min(16000, (2 ** i) * 1000) + Math.floor(Math.random()*500);
-        await new Promise(r=>setTimeout(r, wait));
-        lastErr = new Error(`Reintentando por ${res.status}…`);
-        continue;
-      }
-      const text = await res.text();
-      throw new Error(`Error ${res.status}: ${text}`);
-    }catch(e){
-      lastErr = e;
-      const wait = Math.min(16000, (2 ** i) * 1000);
-      await new Promise(r=>setTimeout(r, wait));
-    }
-  }
-  throw lastErr;
-}
+        function parseCustomFormat(responseText) {
+            const articles = [];
+            const articleBlocks = responseText.split('<ARTICLE_END>');
 
-/* ===========================
-   Helpers
-   =========================== */
-function showError(msg){
-  const box = $("errorBox");
-  box.textContent = msg;
-  box.classList.remove("hidden");
-}
-function hideError(){ $("errorBox").classList.add("hidden"); }
-function escapeHtml(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function sanitize(s){
-  // Convertir saltos de línea a <br> para visualización agradable
-  return escapeHtml(s).replace(/\n/g,"<br>");
-}
-</script>
+            for (const block of articleBlocks) {
+                if (block.trim() === '') continue;
+
+                const originalMatch = block.match(/<ORIGINAL>([\s\S]*?)<\/ORIGINAL>/);
+                const indicationsMatch = block.match(/<INDICACIONES>([\s\S]*?)<\/INDICACIONES>/);
+                const finalMatch = block.match(/<FINAL>([\s\S]*?)<\/FINAL>/);
+
+                if (originalMatch && indicationsMatch && finalMatch) {
+                    articles.push({
+                        textoOriginal: (originalMatch[1] || '').trim(),
+                        indicaciones: (indicationsMatch[1] || '').trim(),
+                        textoFinal: (finalMatch[1] || '').trim()
+                    });
+                }
+            }
+            return articles;
+        }
+        
+        function renderTable(articles) {
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = ''; 
+
+            if (!articles || articles.length === 0) {
+                container.innerHTML = `<p class="text-red-500">No se pudieron procesar los artículos a partir de la respuesta de la API. Verifique el texto de entrada.</p>`;
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.id = 'resultsTable';
+            table.className = 'w-full border-collapse';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th class="w-1/3 p-2 border bg-gray-100">Texto Original (con cambios)</th>
+                    <th class="w-1/3 p-2 border bg-gray-100">Indicaciones Generadas</th>
+                    <th class="w-1/3 p-2 border bg-gray-100">Texto Final (con cambios)</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            articles.forEach(article => {
+                const diff = Diff.diffWords(article.textoOriginal || '', article.textoFinal || '', { ignoreWhitespace: true });
+                let originalHtml = '';
+                let finalHtml = '';
+
+                diff.forEach(part => {
+                    const value = part.value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    if (part.added) {
+                        finalHtml += `<ins>${value}</ins>`;
+                    } else if (part.removed) {
+                        originalHtml += `<del>${value}</del>`;
+                    } else {
+                        originalHtml += value;
+                        finalHtml += value;
+                    }
+                });
+                
+                const indicationsText = article.indicaciones || '';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 border align-top whitespace-pre-wrap">${originalHtml}</td>
+                    <td class="p-2 border align-top whitespace-pre-wrap">${indicationsText.replace(/\n/g, '<br>')}</td>
+                    <td class="p-2 border align-top whitespace-pre-wrap">${finalHtml}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+
+            document.getElementById('outputSection').classList.remove('hidden');
+        }
+
+        async function fetchWithExponentialBackoff(url, options, maxRetries = 5) {
+            let lastError;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+
+                    if (response.status === 429) {
+                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                        console.log(`Rate limit exceeded. Retrying in ${Math.round(delay / 1000)}s...`);
+                        resultsContainer.innerHTML = `<p class="text-orange-500">Límite de solicitudes alcanzado. Reintentando automáticamente en ${Math.round(delay / 1000)} segundos...</p>`;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        lastError = new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
+                        continue;
+                    }
+                    throw new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
+                } catch (error) {
+                    lastError = error;
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    console.log(`Request failed. Retrying in ${Math.round(delay / 1000)}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw lastError;
+        }
+
+        async function generateIndications() {
+            const apiKey = document.getElementById('apiKey').value;
+            const originalText = document.getElementById('originalText').value;
+            const finalText = document.getElementById('finalText').value;
+            const resultsContainer = document.getElementById('resultsContainer');
+            const outputSection = document.getElementById('outputSection');
+            const generateButton = document.getElementById('generateButton');
+            const timerResult = document.getElementById('timerResult');
+            
+            if (!apiKey) { showAlert('Por favor, ingrese su clave de API de OpenAI para continuar.'); return; }
+            if (!originalText.trim() || !finalText.trim()) { showAlert('Por favor, pegue el texto en ambas columnas para generar las indicaciones.'); return; }
+
+            generateButton.disabled = true;
+            generateButton.textContent = 'Generando...';
+            outputSection.classList.remove('hidden');
+            resultsContainer.innerHTML = '<div class="loader"></div>';
+            timerResult.textContent = '';
+            const startTime = performance.now();
+
+            // === NUEVO PROMPT UNIFICADO (sin backticks internos) ===
+            const prompt = `
+Rol: Eres un asesor legislativo experto en Chile, con especialización en técnica parlamentaria. Tu misión es generar una comparación completa, artículo por artículo, de dos textos legales, produciendo indicaciones precisas y profesionales que se adhieran estrictamente a la terminología oficial.
+
+1) GLOSARIO DE TÉRMINOS (USO OBLIGATORIO)
+- Verbos de acción (normativos):
+  • Para adicionar información: "Incorpórase", "Agrégase", "Añádese".
+  • Para sustituir información: "Sustitúyese", "Reemplázase".
+  • Para adicionar entre vocablos: "Intercálese".
+  • Para eliminar información: "Suprímese", "Elimínase".
+  • Para modificar de forma genérica: "Modifícase".
+- Sustantivos para designar elementos:
+  "el guarismo", "la expresión", "la palabra", "la frase", "la oración",
+  "el numeral", "el literal", "el inciso", "el artículo", "el encabezado",
+  "la sección (i), (ii), (iii)…".
+- Meta-frase para iniciar cada indicación numerada (nivel principal):
+  "Para + infinitivo" (ej.: Para reemplazar…, Para modificar…, Para agregar…).
+  En los desgloses a), b), c) usa solo los verbos normativos del glosario.
+
+2) REGLAS DE ORO (MÁXIMA PRIORIDAD)
+- Numeración correlativa global: la secuencia 1), 2), 3)… es continua a lo largo de TODO el documento (no se reinicia por artículo).
+- Procesar todo y en orden: recorre los textos de principio a fin y genera un bloque para CADA artículo.
+- Encabezado único por artículo (obligatorio):
+  Dentro de <INDICACIONES>, escribe una sola vez la línea:
+  AL ARTÍCULO [nombre completo]
+  (sin dos puntos al final) y debajo coloca todas las indicaciones numeradas aplicables a ese artículo.
+  "Nombre completo" = denominación exacta (p. ej., "Artículo 11", "Artículo tercero transitorio", ordinales/letras/romanos y/o epígrafe).
+- Agrupación de cambios:
+  • Genera UNA indicación por unidad afectada (inciso, numeral, literal, sección, encabezado, “nuevo inciso [ordinal] introducido al artículo X”, etc.).
+  • Si varios cambios coherentes afectan una MISMA unidad (o varias partes del mismo artículo bajo un objetivo común), puedes agruparlos en UNA sola indicación usando la frase: "en el siguiente sentido:" y desglosando con a), b), c)… (usando verbos normativos).
+
+3) FORMATO DE SALIDA ESTRICTO (OBLIGATORIO)
+Toda la respuesta debe usar estas etiquetas (no uses JSON).
+<ARTICLE_START>
+<ORIGINAL>...texto original aquí (si aplica)...</ORIGINAL>
+<INDICACIONES>
+AL ARTÍCULO [nombre completo]
+1) Para [verbo en infinitivo] ...
+2) Para [verbo en infinitivo] ...
+   a) [Verbo normativo] ...
+   b) [Verbo normativo] ...
+3) Para [verbo en infinitivo] ...
+</INDICACIONES>
+<FINAL>...texto final aquí (si aplica)...</FINAL>
+<ARTICLE_END>
+... (repetir para cada artículo) ...
+Si no hay cambios para un artículo, deja <INDICACIONES> vacío (sin encabezado ni numerales).
+
+4) PROCESO DE ANÁLISIS SECUENCIAL E ITERATIVO
+Paso 1 — Identificar artículo: toma el siguiente en secuencia (p. ej., "Artículo 2°", "Artículo tercero transitorio").
+Paso 2 — Determinar el caso:
+CASO A: MODIFICACIÓN (existe en ambos textos con el mismo número)
+  - Regla de agrupación:
+    • Una indicación por unidad afectada (inciso, numeral, literal, sección, encabezado…).
+    • Si hay múltiples cambios en la MISMA unidad, usa:
+      N) Para modificar [la unidad] en el siguiente sentido:
+         a) [Verbo normativo] ...
+         b) [Verbo normativo] ...
+  - Plantillas:
+    • N) Para reemplazar en el [inciso/numeral/literal/sección (ii)] [del artículo X], el guarismo "___" por "___".
+    • N) Para agregar, en el [inciso/numeral/literal], a continuación de "___", la frase "___".
+    • N) Para modificar [inciso primero] en el siguiente sentido:
+         a) Suprímese la expresión "___".
+         b) Incorpórase, entre "___" y "___", la frase "___".
+CASO B: ARTÍCULO NUEVO (solo en el Texto Final)
+  - <ORIGINAL> vacío.
+  - <INDICACIONES>:
+    AL ARTÍCULO [nombre completo]
+    N) Para agregar el siguiente artículo [nombre completo], nuevo, del siguiente tenor: "___".
+  - <FINAL> contiene el texto completo nuevo.
+CASO C: ARTÍCULO ELIMINADO (solo en el Texto Original)
+  - <ORIGINAL> contiene el texto del artículo.
+  - <INDICACIONES>:
+    AL ARTÍCULO [nombre completo]
+    N) Para suprimir el artículo [nombre completo].
+  - <FINAL> vacío.
+CASO D: RENUMERACIÓN (contenido del "Artículo X" original es idéntico al del "Artículo Y" final)
+  - <ORIGINAL> contiene el texto del artículo X.
+  - <INDICACIONES>:
+    AL ARTÍCULO [nombre completo del original X]
+    N) Para consignar que el artículo X ha pasado a ser artículo Y.
+  - <FINAL> contiene el texto del artículo Y.
+Paso 3 — Construir bloque de salida: encierra cada resultado en <ARTICLE_START> … <ARTICLE_END>.
+Paso 4 — Continuar: al cerrar <ARTICLE_END>, procesa de inmediato el siguiente artículo.
+
+5) REGLA FINAL DE COMPLETITUD
+No te detengas hasta procesar TODOS los artículos del Texto Original y del Texto Final. Continúa generando bloques <ARTICLE_START>…<ARTICLE_END> hasta cubrir ambos completamente.
+
+6) TEXTOS A PROCESAR
+Texto Original:
+${originalText}
+
+Texto Final:
+${finalText}
+`;
+
+            const apiUrl = 'https://api.openai.com/v1/chat/completions';
+            const payload = {
+                model: "gpt-4o",
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.2
+            };
+
+            try {
+                const response = await fetchWithExponentialBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const responseText = result?.choices?.[0]?.message?.content;
+
+                if (!responseText) throw new Error('La respuesta de la API no contiene texto procesable.');
+                
+                const articles = parseCustomFormat(responseText);
+                renderTable(articles);
+
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                timerResult.textContent = `(Generado en ${duration} segundos)`;
+
+            } catch (error) {
+                console.error('Error al procesar la solicitud:', error);
+                resultsContainer.innerHTML = `<p class="text-red-500">Ocurrió un error al generar las indicaciones después de varios intentos. Error: ${error.message}</p>`;
+            } finally {
+                generateButton.disabled = false;
+                generateButton.textContent = 'Generar Tabla Comparativa';
+            }
+        }
+
+        function exportToWord() {
+            const table = document.getElementById('resultsTable');
+            if (!table) { showAlert("No hay resultados para exportar."); return; }
+            
+            const tableClone = table.cloneNode(true);
+            tableClone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\n'), br));
+
+            const content = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: 'Times New Roman', Times, serif; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; white-space: pre-wrap; }
+                        th { background-color: #f2f2f2; }
+                        ins { background-color: #d4edda; text-decoration: none; color: black; }
+                        del { background-color: #f8d7da; text-decoration: line-through; color: black; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Tabla Comparativa de Indicaciones</h1>
+                    ${tableClone.outerHTML}
+                </body>
+                </html>
+            `;
+            
+            var converted = htmlDocx.asBlob(content);
+            saveAs(converted, 'Tabla_Comparativa_Indicaciones.docx');
+        }
+    </script>
 </body>
 </html>
