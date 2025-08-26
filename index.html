@@ -1,223 +1,272 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Copiloto Legal: Comparador Legislativo Inteligente (OpenAI)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Library for Word export -->
-    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
-    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    <!-- Library for Diff viewer -->
-    <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        #resultsTable th, #resultsTable td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
-        #resultsTable th { background-color: #f2f2f2; text-align: left; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        ins { background-color: #d4edda; text-decoration: none; }
-        del { background-color: #f8d7da; text-decoration: line-through; }
-        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background-color: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); text-align: center; max-width: 90%; width: 400px; }
-        .modal-button { margin-top: 1.5rem; padding: 0.5rem 1.5rem; border-radius: 0.375rem; background-color: #2563eb; color: white; font-weight: 600; cursor: pointer; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Copiloto Legal: Comparador Legislativo Inteligente (GPT-5)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Word export -->
+  <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <!-- Diff viewer -->
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    #resultsTable th, #resultsTable td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    #resultsTable th { background-color: #f2f2f2; text-align: left; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    ins { background-color: #d4edda; text-decoration: none; }
+    del { background-color: #f8d7da; text-decoration: line-through; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: #fff; padding: 2rem; border-radius: .5rem; box-shadow: 0 4px 6px rgba(0,0,0,.1); text-align: center; max-width: 90%; width: 420px; }
+    .modal-button { margin-top: 1.5rem; padding: .5rem 1.5rem; border-radius: .375rem; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+  </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
 
-    <div class="container mx-auto p-4 md:p-8 flex-grow">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Copiloto Legal</h1>
-            <p class="text-gray-600 mt-2">Su asistente para la generación de indicaciones y tablas comparativas de textos legales.</p>
-        </header>
+  <div class="container mx-auto p-4 md:p-8 flex-grow">
+    <header class="text-center mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Copiloto Legal</h1>
+      <p class="text-gray-600 mt-2">Genera indicaciones y tablas comparativas de textos legales (GPT-5).</p>
+    </header>
 
-        <!-- API Key Input: Changed to request an OpenAI key -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <label for="apiKey" class="block text-lg font-semibold mb-2">Your OpenAI API Key</label>
-            <input type="password" id="apiKey" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Paste your API key here to enable the tool">
-            <p class="text-sm text-gray-500 mt-2">Su clave se utiliza únicamente en su navegador y nunca se almacena.</p>
+    <!-- API & model -->
+    <div class="bg-white p-6 rounded-lg shadow-md mb-6 grid gap-4 md:grid-cols-2">
+      <div>
+        <label for="apiKey" class="block text-lg font-semibold mb-2">Your OpenAI API Key</label>
+        <input type="password" id="apiKey" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Pega tu API key aquí">
+        <p class="text-sm text-gray-500 mt-2">La clave se usa solo en tu navegador.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="modelSelect" class="block text-sm font-medium mb-1">Modelo</label>
+          <select id="modelSelect" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+            <option value="gpt-5" selected>gpt-5</option>
+            <option value="gpt-5-thinking">gpt-5-thinking</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">Puedes alternar entre GPT-5 “normal” y “thinking”.</p>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4">Texto Original Completo</h2>
-                <textarea id="originalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto original..."></textarea>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4">Texto Final Completo</h2>
-                <textarea id="finalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto final modificado..."></textarea>
-            </div>
+        <div class="flex items-end">
+          <label class="inline-flex items-center gap-2">
+            <input id="strictToggle" type="checkbox" class="h-4 w-4">
+            <span class="text-sm">Modo estricto (sin ordinal dudoso)</span>
+          </label>
         </div>
-
-        <div class="text-center my-8">
-            <button id="generateButton" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                Generar Tabla Comparativa
-            </button>
-        </div>
-
-        <div id="outputSection" class="bg-white p-6 rounded-lg shadow-md hidden">
-             <div class="flex justify-between items-center mb-4">
-                  <h2 class="text-xl font-semibold">Resultado Comparativo <span id="timerResult" class="text-sm font-normal text-gray-500 ml-2"></span></h2>
-                  <button id="exportButton" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">
-                        Exportar a Word
-                  </button>
-             </div>
-             <div id="resultsContainer" class="w-full overflow-x-auto"></div>
-        </div>
+      </div>
     </div>
 
-    <footer class="text-center p-4 text-gray-500 text-sm">
-        <p>Copiloto Legal v4.7.2 (OpenAI Edition) | Última actualización: 22 de Agosto, 2025</p>
-    </footer>
-
-    <!-- Modal for custom alerts -->
-    <div id="customAlert" class="modal-backdrop hidden">
-        <div class="modal-content">
-            <p id="alertMessage"></p>
-            <button id="alertCloseButton" class="modal-button">Cerrar</button>
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold mb-4">Texto Original Completo</h2>
+        <textarea id="originalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto original..."></textarea>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold mb-4">Texto Final Completo</h2>
+        <textarea id="finalText" class="w-full h-96 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 transition" placeholder="Pegue aquí la columna completa del texto final modificado..."></textarea>
+      </div>
     </div>
 
-    <script>
-        document.getElementById('generateButton').addEventListener('click', generateIndications);
-        document.getElementById('exportButton').addEventListener('click', exportToWord);
-        document.getElementById('alertCloseButton').addEventListener('click', () => {
-            document.getElementById('customAlert').classList.add('hidden');
+    <div class="text-center my-8 flex flex-col items-center gap-3">
+      <button id="generateButton" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+        Generar Tabla Comparativa
+      </button>
+      <div class="text-sm text-gray-500">
+        <span id="timerResult"></span>
+        <span id="usageResult" class="ml-2"></span>
+      </div>
+    </div>
+
+    <div id="outputSection" class="bg-white p-6 rounded-lg shadow-md hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Resultado Comparativo</h2>
+        <button id="exportButton" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+          Exportar a Word
+        </button>
+      </div>
+      <div id="resultsContainer" class="w-full overflow-x-auto"></div>
+    </div>
+  </div>
+
+  <footer class="text-center p-4 text-gray-500 text-sm">
+    <p>Copiloto Legal v5.0.0 (GPT-5 Edition) | Última actualización: 26 de Agosto, 2025</p>
+  </footer>
+
+  <!-- Modal -->
+  <div id="customAlert" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <p id="alertMessage"></p>
+      <button id="alertCloseButton" class="modal-button">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    $('generateButton').addEventListener('click', generateIndications);
+    $('exportButton').addEventListener('click', exportToWord);
+    $('alertCloseButton').addEventListener('click', () => $('customAlert').classList.add('hidden'));
+
+    function showAlert(message) {
+      $('alertMessage').textContent = message;
+      $('customAlert').classList.remove('hidden');
+    }
+
+    function parseCustomFormat(responseText) {
+      const articles = [];
+      const articleBlocks = responseText.split('<ARTICLE_END>');
+      for (const block of articleBlocks) {
+        if (block.trim() === '') continue;
+        const originalMatch = block.match(/<ORIGINAL>([\\s\\S]*?)<\\/ORIGINAL>/);
+        const indicationsMatch = block.match(/<INDICACIONES>([\\s\\S]*?)<\\/INDICACIONES>/);
+        const finalMatch = block.match(/<FINAL>([\\s\\S]*?)<\\/FINAL>/);
+        if (originalMatch && indicationsMatch && finalMatch) {
+          articles.push({
+            textoOriginal: (originalMatch[1] || '').trim(),
+            indicaciones: (indicationsMatch[1] || '').trim(),
+            textoFinal: (finalMatch[1] || '').trim()
+          });
+        }
+      }
+      return articles;
+    }
+
+    function renderTable(articles) {
+      const container = $('resultsContainer');
+      container.innerHTML = '';
+      if (!articles || articles.length === 0) {
+        container.innerHTML = `<p class="text-red-500">No se pudieron procesar los artículos. Verifique el texto de entrada.</p>`;
+        return;
+      }
+      const table = document.createElement('table');
+      table.id = 'resultsTable';
+      table.className = 'w-full border-collapse';
+
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th class="w-1/3 p-2 border bg-gray-100">Texto Original (con cambios)</th>
+          <th class="w-1/3 p-2 border bg-gray-100">Indicaciones Generadas</th>
+          <th class="w-1/3 p-2 border bg-gray-100">Texto Final (con cambios)</th>
+        </tr>`;
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      articles.forEach(article => {
+        const diff = Diff.diffWords(article.textoOriginal || '', article.textoFinal || '', { ignoreWhitespace: true });
+        let originalHtml = '', finalHtml = '';
+        diff.forEach(part => {
+          const value = part.value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          if (part.added)      finalHtml += `<ins>${value}</ins>`;
+          else if (part.removed) originalHtml += `<del>${value}</del>`;
+          else { originalHtml += value; finalHtml += value; }
         });
 
-        function showAlert(message) {
-            document.getElementById('alertMessage').textContent = message;
-            document.getElementById('customAlert').classList.remove('hidden');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-2 border align-top whitespace-pre-wrap">${originalHtml}</td>
+          <td class="p-2 border align-top whitespace-pre-wrap">${(article.indicaciones || '').replace(/\\n/g,'<br>')}</td>
+          <td class="p-2 border align-top whitespace-pre-wrap">${finalHtml}</td>`;
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+      $('outputSection').classList.remove('hidden');
+    }
+
+    async function fetchWithExponentialBackoff(url, options, maxRetries = 4) {
+      let lastError;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const res = await fetch(url, options);
+          if (res.ok) return res;
+          if (res.status === 429) {
+            const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+            $('resultsContainer').innerHTML = `<p class="text-orange-500">Límite de solicitudes. Reintentando en ${Math.round(delay/1000)}s…</p>`;
+            await new Promise(r => setTimeout(r, delay));
+            lastError = new Error(\`429: \${await res.text()}\`);
+            continue;
+          }
+          throw new Error(\`HTTP \${res.status}: \${await res.text()}\`);
+        } catch (err) {
+          lastError = err;
+          const delay = Math.pow(2, attempt) * 600 + Math.random() * 600;
+          await new Promise(r => setTimeout(r, delay));
         }
+      }
+      throw lastError;
+    }
 
-        function parseCustomFormat(responseText) {
-            const articles = [];
-            const articleBlocks = responseText.split('<ARTICLE_END>');
+    async function callResponsesAPI({ apiKey, model, input }) {
+      const url = 'https://api.openai.com/v1/responses'; // Responses API (GPT-5 ready)
+      const payload = { model, input, temperature: 0.2 };
+      const res = await fetchWithExponentialBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${apiKey}\` },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
 
-            for (const block of articleBlocks) {
-                if (block.trim() === '') continue;
+      // Prefer the convenience field if present
+      if (json.output_text) return { text: json.output_text, usage: json.usage };
 
-                const originalMatch = block.match(/<ORIGINAL>([\s\S]*?)<\/ORIGINAL>/);
-                const indicationsMatch = block.match(/<INDICACIONES>([\s\S]*?)<\/INDICACIONES>/);
-                const finalMatch = block.match(/<FINAL>([\s\S]*?)<\/FINAL>/);
+      // Otherwise traverse output → content → text
+      const msg = json.output?.[0];
+      const parts = msg?.content || [];
+      const textPart = parts.find(p => p.type === 'output_text' || p.type === 'text');
+      const text = textPart?.text || '';
+      return { text, usage: json.usage };
+    }
 
-                if (originalMatch && indicationsMatch && finalMatch) {
-                    articles.push({
-                        textoOriginal: (originalMatch[1] || '').trim(),
-                        indicaciones: (indicationsMatch[1] || '').trim(),
-                        textoFinal: (finalMatch[1] || '').trim()
-                    });
-                }
-            }
-            return articles;
-        }
-        
-        function renderTable(articles) {
-            const container = document.getElementById('resultsContainer');
-            container.innerHTML = ''; 
+    async function callChatCompletionsFallback({ apiKey, model, content }) {
+      const url = 'https://api.openai.com/v1/chat/completions';
+      const payload = {
+        model, messages: [{ role: 'user', content }], temperature: 0.2
+      };
+      const res = await fetchWithExponentialBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${apiKey}\` },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      const text = json?.choices?.[0]?.message?.content || '';
+      return { text, usage: json.usage };
+    }
 
-            if (!articles || articles.length === 0) {
-                container.innerHTML = `<p class="text-red-500">No se pudieron procesar los artículos a partir de la respuesta de la API. Verifique el texto de entrada.</p>`;
-                return;
-            }
+    async function generateIndications() {
+      const apiKey = $('apiKey').value.trim();
+      const originalText = $('originalText').value;
+      const finalText = $('finalText').value;
+      const resultsContainer = $('resultsContainer');
+      const outputSection = $('outputSection');
+      const generateButton = $('generateButton');
+      const timerResult = $('timerResult');
+      const usageResult = $('usageResult');
+      const model = $('modelSelect').value;
 
-            const table = document.createElement('table');
-            table.id = 'resultsTable';
-            table.className = 'w-full border-collapse';
+      if (!apiKey) { showAlert('Ingresa tu API key de OpenAI.'); return; }
+      if (!originalText.trim() || !finalText.trim()) { showAlert('Pega texto en ambas columnas.'); return; }
 
-            const thead = document.createElement('thead');
-            thead.innerHTML = `
-                <tr>
-                    <th class="w-1/3 p-2 border bg-gray-100">Texto Original (con cambios)</th>
-                    <th class="w-1/3 p-2 border bg-gray-100">Indicaciones Generadas</th>
-                    <th class="w-1/3 p-2 border bg-gray-100">Texto Final (con cambios)</th>
-                </tr>
-            `;
-            table.appendChild(thead);
+      generateButton.disabled = true;
+      generateButton.textContent = 'Generando...';
+      outputSection.classList.remove('hidden');
+      resultsContainer.innerHTML = '<div class="loader"></div>';
+      timerResult.textContent = '';
+      usageResult.textContent = '';
+      const start = performance.now();
 
-            const tbody = document.createElement('tbody');
-            articles.forEach(article => {
-                const diff = Diff.diffWords(article.textoOriginal || '', article.textoFinal || '', { ignoreWhitespace: true });
-                let originalHtml = '';
-                let finalHtml = '';
+      // === PROMPT (tu prompt base + ajustes de “nuevo inciso” en modo estricto) ===
+      const strictNote = $('strictToggle').checked
+        ? `
 
-                diff.forEach(part => {
-                    const value = part.value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    if (part.added) {
-                        finalHtml += `<ins>${value}</ins>`;
-                    } else if (part.removed) {
-                        originalHtml += `<del>${value}</del>`;
-                    } else {
-                        originalHtml += value;
-                        finalHtml += value;
-                    }
-                });
-                
-                const indicationsText = article.indicaciones || '';
+NOTA DE SALIDA (obligatoria):
+- Si no puedes determinar con 100% de certeza el ordinal del “nuevo inciso”, escribe solo "nuevo inciso" SIN ordinal.
+- Nunca infieras "inciso primero/segundo/tercero" si existe ambigüedad.`
+        : '';
 
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="p-2 border align-top whitespace-pre-wrap">${originalHtml}</td>
-                    <td class="p-2 border align-top whitespace-pre-wrap">${indicationsText.replace(/\n/g, '<br>')}</td>
-                    <td class="p-2 border align-top whitespace-pre-wrap">${finalHtml}</td>
-                `;
-                tbody.appendChild(row);
-            });
-            table.appendChild(tbody);
-            container.appendChild(table);
-
-            document.getElementById('outputSection').classList.remove('hidden');
-        }
-
-        async function fetchWithExponentialBackoff(url, options, maxRetries = 5) {
-            let lastError;
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.ok) return response;
-
-                    if (response.status === 429) {
-                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                        console.log(`Rate limit exceeded. Retrying in ${Math.round(delay / 1000)}s...`);
-                        resultsContainer.innerHTML = `<p class="text-orange-500">Límite de solicitudes alcanzado. Reintentando automáticamente en ${Math.round(delay / 1000)} segundos...</p>`;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        lastError = new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
-                        continue;
-                    }
-                    throw new Error(`La solicitud a la API falló con el estado ${response.status}: ${await response.text()}`);
-                } catch (error) {
-                    lastError = error;
-                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                    console.log(`Request failed. Retrying in ${Math.round(delay / 1000)}s...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-            throw lastError;
-        }
-
-        async function generateIndications() {
-            const apiKey = document.getElementById('apiKey').value;
-            const originalText = document.getElementById('originalText').value;
-            const finalText = document.getElementById('finalText').value;
-            const resultsContainer = document.getElementById('resultsContainer');
-            const outputSection = document.getElementById('outputSection');
-            const generateButton = document.getElementById('generateButton');
-            const timerResult = document.getElementById('timerResult');
-            
-            if (!apiKey) { showAlert('Por favor, ingrese su clave de API de OpenAI para continuar.'); return; }
-            if (!originalText.trim() || !finalText.trim()) { showAlert('Por favor, pegue el texto en ambas columnas para generar las indicaciones.'); return; }
-
-            generateButton.disabled = true;
-            generateButton.textContent = 'Generando...';
-            outputSection.classList.remove('hidden');
-            resultsContainer.innerHTML = '<div class="loader"></div>';
-            timerResult.textContent = '';
-            const startTime = performance.now();
-
-            // === NUEVO PROMPT UNIFICADO (sin backticks internos) ===
-            const prompt = `
+      const prompt = `
 Rol: Eres un asesor legislativo experto en Chile, con especialización en técnica parlamentaria. Tu misión es generar una comparación completa, artículo por artículo, de dos textos legales, produciendo indicaciones precisas y profesionales que se adhieran estrictamente a la terminología oficial.
+${strictNote}
 
 1) GLOSARIO DE TÉRMINOS (USO OBLIGATORIO)
 - Verbos de acción (normativos):
@@ -247,7 +296,6 @@ Rol: Eres un asesor legislativo experto en Chile, con especialización en técni
   • Si varios cambios coherentes afectan una MISMA unidad (o varias partes del mismo artículo bajo un objetivo común), puedes agruparlos en UNA sola indicación usando la frase: "en el siguiente sentido:" y desglosando con a), b), c)… (usando verbos normativos).
 
 3) FORMATO DE SALIDA ESTRICTO (OBLIGATORIO)
-Toda la respuesta debe usar estas etiquetas (no uses JSON).
 <ARTICLE_START>
 <ORIGINAL>...texto original aquí (si aplica)...</ORIGINAL>
 <INDICACIONES>
@@ -311,75 +359,65 @@ Texto Final:
 ${finalText}
 `;
 
-            const apiUrl = 'https://api.openai.com/v1/chat/completions';
-            const payload = {
-                model: "gpt-4o",
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.2
-            };
-
-            try {
-                const response = await fetchWithExponentialBackoff(apiUrl, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const responseText = result?.choices?.[0]?.message?.content;
-
-                if (!responseText) throw new Error('La respuesta de la API no contiene texto procesable.');
-                
-                const articles = parseCustomFormat(responseText);
-                renderTable(articles);
-
-                const endTime = performance.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(2);
-                timerResult.textContent = `(Generado en ${duration} segundos)`;
-
-            } catch (error) {
-                console.error('Error al procesar la solicitud:', error);
-                resultsContainer.innerHTML = `<p class="text-red-500">Ocurrió un error al generar las indicaciones después de varios intentos. Error: ${error.message}</p>`;
-            } finally {
-                generateButton.disabled = false;
-                generateButton.textContent = 'Generar Tabla Comparativa';
-            }
+      try {
+        // Primary path: Responses API (GPT-5)
+        let text, usage;
+        try {
+          const resp = await callResponsesAPI({ apiKey, model, input: prompt });
+          text = resp.text; usage = resp.usage;
+          if (!text) throw new Error('Empty output_text');
+        } catch (primaryErr) {
+          // Fallback: Chat Completions (for compatibility)
+          const fallbackModel = model === 'gpt-5-thinking' ? 'gpt-5' : model;
+          const resp2 = await callChatCompletionsFallback({ apiKey, model: fallbackModel, content: prompt });
+          text = resp2.text; usage = resp2.usage;
+          if (!text) throw primaryErr;
         }
 
-        function exportToWord() {
-            const table = document.getElementById('resultsTable');
-            if (!table) { showAlert("No hay resultados para exportar."); return; }
-            
-            const tableClone = table.cloneNode(true);
-            tableClone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\n'), br));
+        const articles = parseCustomFormat(text);
+        renderTable(articles);
 
-            const content = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <style>
-                        body { font-family: 'Times New Roman', Times, serif; }
-                        table { border-collapse: collapse; width: 100%; }
-                        th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; white-space: pre-wrap; }
-                        th { background-color: #f2f2f2; }
-                        ins { background-color: #d4edda; text-decoration: none; color: black; }
-                        del { background-color: #f8d7da; text-decoration: line-through; color: black; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Tabla Comparativa de Indicaciones</h1>
-                    ${tableClone.outerHTML}
-                </body>
-                </html>
-            `;
-            
-            var converted = htmlDocx.asBlob(content);
-            saveAs(converted, 'Tabla_Comparativa_Indicaciones.docx');
+        const end = performance.now();
+        const secs = ((end - start) / 1000).toFixed(2);
+        $('timerResult').textContent = `(Generado en ${secs}s)`;
+        if (usage && (usage.total_tokens || usage.input_tokens || usage.output_tokens)) {
+          const inTok = usage.input_tokens ?? usage.prompt_tokens ?? 0;
+          const outTok = usage.output_tokens ?? usage.completion_tokens ?? 0;
+          $('usageResult').textContent = `| tokens in: ${inTok} · out: ${outTok}`;
         }
-    </script>
+      } catch (error) {
+        console.error('Error:', error);
+        resultsContainer.innerHTML = `<p class="text-red-500">Error al generar las indicaciones. Detalle: ${error.message}</p>`;
+      } finally {
+        generateButton.disabled = false;
+        generateButton.textContent = 'Generar Tabla Comparativa';
+      }
+    }
+
+    function exportToWord() {
+      const table = $('resultsTable');
+      if (!table) { showAlert("No hay resultados para exportar."); return; }
+      const clone = table.cloneNode(true);
+      clone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\\n'), br));
+      const content = `
+        <!DOCTYPE html>
+        <html><head><meta charset="UTF-8">
+          <style>
+            body { font-family: 'Times New Roman', Times, serif; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; white-space: pre-wrap; }
+            th { background-color: #f2f2f2; }
+            ins { background-color: #d4edda; text-decoration: none; color: black; }
+            del { background-color: #f8d7da; text-decoration: line-through; color: black; }
+          </style>
+        </head>
+        <body>
+          <h1>Tabla Comparativa de Indicaciones</h1>
+          ${clone.outerHTML}
+        </body></html>`;
+      const blob = htmlDocx.asBlob(content);
+      saveAs(blob, 'Tabla_Comparativa_Indicaciones.docx');
+    }
+  </script>
 </body>
 </html>
