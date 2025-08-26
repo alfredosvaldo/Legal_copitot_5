@@ -33,12 +33,18 @@
     </header>
 
     <!-- API & model -->
-    <div class="bg-white p-6 rounded-lg shadow-md mb-6 grid gap-4 md:grid-cols-2">
+    <div class="bg-white p-6 rounded-lg shadow-md mb-6 grid gap-6 md:grid-cols-2">
       <div>
         <label for="apiKey" class="block text-lg font-semibold mb-2">Your OpenAI API Key</label>
         <input type="password" id="apiKey" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Pega tu API key aquí">
-        <p class="text-sm text-gray-500 mt-2">La clave se usa solo en tu navegador.</p>
+        <div class="flex flex-wrap items-center gap-2 mt-3">
+          <button id="rememberKeyBtn" class="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">Recordar clave</button>
+          <button id="forgetKeyBtn" class="px-3 py-2 rounded-md bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300">Olvidar</button>
+          <span id="keyStatus" class="text-xs text-gray-500"></span>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">La clave se almacena localmente en tu navegador (localStorage). Puedes eliminarla cuando quieras.</p>
       </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label for="modelSelect" class="block text-sm font-medium mb-1">Modelo</label>
@@ -46,12 +52,15 @@
             <option value="gpt-5" selected>gpt-5</option>
             <option value="gpt-5-thinking">gpt-5-thinking</option>
           </select>
-          <p class="text-xs text-gray-500 mt-1">Puedes alternar entre GPT-5 “normal” y “thinking”.</p>
+          <p class="text-xs text-gray-500 mt-1">Alterna entre GPT‑5 estándar y GPT‑5 Thinking.</p>
         </div>
         <div class="flex items-end">
+          <button id="thinkingBtn" class="px-3 py-2 rounded-md bg-gray-200 text-gray-800 text-sm font-semibold w-full">Thinking: OFF</button>
+        </div>
+        <div class="col-span-2">
           <label class="inline-flex items-center gap-2">
             <input id="strictToggle" type="checkbox" class="h-4 w-4">
-            <span class="text-sm">Modo estricto (sin ordinal dudoso)</span>
+            <span class="text-sm">Modo estricto (no inventar ordinal de “nuevo inciso”)</span>
           </label>
         </div>
       </div>
@@ -90,7 +99,7 @@
   </div>
 
   <footer class="text-center p-4 text-gray-500 text-sm">
-    <p>Copiloto Legal v5.0.0 (GPT-5 Edition) | Última actualización: 26 de Agosto, 2025</p>
+    <p>Copiloto Legal v5.0.1 (GPT-5 Edition) | Última actualización: 26 de Agosto, 2025</p>
   </footer>
 
   <!-- Modal -->
@@ -103,13 +112,67 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const LS_KEY = 'copiloto_legal_api_key';
+
+    // Event bindings
     $('generateButton').addEventListener('click', generateIndications);
     $('exportButton').addEventListener('click', exportToWord);
     $('alertCloseButton').addEventListener('click', () => $('customAlert').classList.add('hidden'));
+    $('rememberKeyBtn').addEventListener('click', saveApiKey);
+    $('forgetKeyBtn').addEventListener('click', forgetApiKey);
+
+    // Thinking toggle state
+    let thinkingActive = false;
+    const thinkingBtn = $('thinkingBtn');
+    thinkingBtn.addEventListener('click', () => setThinking(!thinkingActive));
+    $('modelSelect').addEventListener('change', (e) => {
+      const isThinking = (e.target.value || '').includes('thinking');
+      setThinking(isThinking);
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Try to load saved key silently
+      try {
+        const saved = localStorage.getItem(LS_KEY);
+        if (saved) {
+          $('apiKey').value = saved;
+          setKeyStatus('Clave cargada desde almacenamiento local.');
+        }
+      } catch (_) {}
+      setThinking(false); // default OFF
+    });
+
+    function setThinking(flag) {
+      thinkingActive = !!flag;
+      $('modelSelect').value = thinkingActive ? 'gpt-5-thinking' : 'gpt-5';
+      thinkingBtn.textContent = thinkingActive ? 'Thinking: ON' : 'Thinking: OFF';
+      thinkingBtn.className = thinkingActive
+        ? 'px-3 py-2 rounded-md bg-purple-600 text-white text-sm font-semibold w-full'
+        : 'px-3 py-2 rounded-md bg-gray-200 text-gray-800 text-sm font-semibold w-full';
+    }
 
     function showAlert(message) {
       $('alertMessage').textContent = message;
       $('customAlert').classList.remove('hidden');
+    }
+
+    function setKeyStatus(msg) { $('keyStatus').textContent = msg; }
+
+    function saveApiKey() {
+      const val = $('apiKey').value.trim();
+      if (!val) { showAlert('Ingresa una clave antes de guardar.'); return; }
+      try {
+        localStorage.setItem(LS_KEY, val);
+        setKeyStatus('Clave guardada localmente.');
+      } catch (e) {
+        showAlert('No se pudo guardar en este navegador.');
+      }
+    }
+
+    function forgetApiKey() {
+      try { localStorage.removeItem(LS_KEY); } catch (_) {}
+      $('apiKey').value = '';
+      setKeyStatus('Clave eliminada del almacenamiento local.');
     }
 
     function parseCustomFormat(responseText) {
@@ -117,9 +180,9 @@
       const articleBlocks = responseText.split('<ARTICLE_END>');
       for (const block of articleBlocks) {
         if (block.trim() === '') continue;
-        const originalMatch = block.match(/<ORIGINAL>([\\s\\S]*?)<\\/ORIGINAL>/);
-        const indicationsMatch = block.match(/<INDICACIONES>([\\s\\S]*?)<\\/INDICACIONES>/);
-        const finalMatch = block.match(/<FINAL>([\\s\\S]*?)<\\/FINAL>/);
+        const originalMatch = block.match(/<ORIGINAL>([\s\S]*?)<\/ORIGINAL>/);
+        const indicationsMatch = block.match(/<INDICACIONES>([\s\S]*?)<\/INDICACIONES>/);
+        const finalMatch = block.match(/<FINAL>([\s\S]*?)<\/FINAL>/);
         if (originalMatch && indicationsMatch && finalMatch) {
           articles.push({
             textoOriginal: (originalMatch[1] || '').trim(),
@@ -165,7 +228,7 @@
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-2 border align-top whitespace-pre-wrap">${originalHtml}</td>
-          <td class="p-2 border align-top whitespace-pre-wrap">${(article.indicaciones || '').replace(/\\n/g,'<br>')}</td>
+          <td class="p-2 border align-top whitespace-pre-wrap">${(article.indicaciones || '').replace(/\n/g,'<br>')}</td>
           <td class="p-2 border align-top whitespace-pre-wrap">${finalHtml}</td>`;
         tbody.appendChild(row);
       });
@@ -184,10 +247,10 @@
             const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
             $('resultsContainer').innerHTML = `<p class="text-orange-500">Límite de solicitudes. Reintentando en ${Math.round(delay/1000)}s…</p>`;
             await new Promise(r => setTimeout(r, delay));
-            lastError = new Error(\`429: \${await res.text()}\`);
+            lastError = new Error(`429: ${await res.text()}`);
             continue;
           }
-          throw new Error(\`HTTP \${res.status}: \${await res.text()}\`);
+          throw new Error(`HTTP ${res.status}: ${await res.text()}`);
         } catch (err) {
           lastError = err;
           const delay = Math.pow(2, attempt) * 600 + Math.random() * 600;
@@ -197,20 +260,18 @@
       throw lastError;
     }
 
-    async function callResponsesAPI({ apiKey, model, input }) {
-      const url = 'https://api.openai.com/v1/responses'; // Responses API (GPT-5 ready)
+    async function callResponsesAPI({ apiKey, model, input, reasoning }) {
+      const url = 'https://api.openai.com/v1/responses'; // Endpoint unificado (GPT-5)
       const payload = { model, input, temperature: 0.2 };
+      if (reasoning) payload.reasoning = reasoning; // solo para modelos *-thinking
       const res = await fetchWithExponentialBackoff(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${apiKey}\` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify(payload)
       });
       const json = await res.json();
 
-      // Prefer the convenience field if present
       if (json.output_text) return { text: json.output_text, usage: json.usage };
-
-      // Otherwise traverse output → content → text
       const msg = json.output?.[0];
       const parts = msg?.content || [];
       const textPart = parts.find(p => p.type === 'output_text' || p.type === 'text');
@@ -220,12 +281,10 @@
 
     async function callChatCompletionsFallback({ apiKey, model, content }) {
       const url = 'https://api.openai.com/v1/chat/completions';
-      const payload = {
-        model, messages: [{ role: 'user', content }], temperature: 0.2
-      };
+      const payload = { model, messages: [{ role: 'user', content }], temperature: 0.2 };
       const res = await fetchWithExponentialBackoff(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${apiKey}\` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify(payload)
       });
       const json = await res.json();
@@ -255,7 +314,6 @@
       usageResult.textContent = '';
       const start = performance.now();
 
-      // === PROMPT (tu prompt base + ajustes de “nuevo inciso” en modo estricto) ===
       const strictNote = $('strictToggle').checked
         ? `
 
@@ -360,14 +418,17 @@ ${finalText}
 `;
 
       try {
-        // Primary path: Responses API (GPT-5)
+        // Build reasoning payload if Thinking is active
+        const reasoning = thinkingActive ? { effort: 'medium' } : undefined;
+
+        // Primary: Responses API (GPT-5)
         let text, usage;
         try {
-          const resp = await callResponsesAPI({ apiKey, model, input: prompt });
+          const resp = await callResponsesAPI({ apiKey, model, input: prompt, reasoning });
           text = resp.text; usage = resp.usage;
-          if (!text) throw new Error('Empty output_text');
+          if (!text) throw new Error('Salida vacía del endpoint Responses');
         } catch (primaryErr) {
-          // Fallback: Chat Completions (for compatibility)
+          // Fallback: Chat Completions
           const fallbackModel = model === 'gpt-5-thinking' ? 'gpt-5' : model;
           const resp2 = await callChatCompletionsFallback({ apiKey, model: fallbackModel, content: prompt });
           text = resp2.text; usage = resp2.usage;
@@ -380,7 +441,7 @@ ${finalText}
         const end = performance.now();
         const secs = ((end - start) / 1000).toFixed(2);
         $('timerResult').textContent = `(Generado en ${secs}s)`;
-        if (usage && (usage.total_tokens || usage.input_tokens || usage.output_tokens)) {
+        if (usage && (usage.total_tokens || usage.input_tokens || usage.output_tokens || usage.prompt_tokens || usage.completion_tokens)) {
           const inTok = usage.input_tokens ?? usage.prompt_tokens ?? 0;
           const outTok = usage.output_tokens ?? usage.completion_tokens ?? 0;
           $('usageResult').textContent = `| tokens in: ${inTok} · out: ${outTok}`;
@@ -398,7 +459,7 @@ ${finalText}
       const table = $('resultsTable');
       if (!table) { showAlert("No hay resultados para exportar."); return; }
       const clone = table.cloneNode(true);
-      clone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\\n'), br));
+      clone.querySelectorAll('br').forEach(br => br.parentNode.replaceChild(document.createTextNode('\n'), br));
       const content = `
         <!DOCTYPE html>
         <html><head><meta charset="UTF-8">
